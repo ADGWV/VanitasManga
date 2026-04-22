@@ -29,11 +29,18 @@
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
-const SUPABASE_URL  = 'https://elfcikmejsvxycempkfr.supabase.co';
-const SUPABASE_KEY  = 'sb_publishable_3LWHa4z5J58rS2VJPzg5Rg_dtGqw8Xb';
+const SUPABASE_URL  = 'https://cgbcummbwheusjslotbu.supabase.co';
+const SUPABASE_KEY  = 'sb_publishable_fQJdsLpYvLMIKvpM0G5GZw_Tqnw6YrN';
 const ADMIN_EMAIL   = 'remysan102030@gmail.com';
 
-const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,   // handles OAuth redirect
+    storageKey: 'vanitas-auth'
+  }
+});
 
 window.$sb       = sb;
 window.ADMIN     = ADMIN_EMAIL;
@@ -45,24 +52,22 @@ sb.auth.onAuthStateChange(async (event, session) => {
   const user = session?.user || null;
   window.ME = user;
   if (user) {
-    if (user.email === ADMIN_EMAIL) window._ownerUid = user.uid;
+    if (user.email === ADMIN_EMAIL) window._ownerUid = user.id;
     try {
       let { data: udata } = await sb.from('users').select('*').eq('id', user.id).single();
       if (!udata) {
-        // First login — create profile
         const { data: newUser } = await sb.from('users').insert({
           id: user.id,
           name: user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0],
           username: null,
           email: user.email,
-          photo_url: user.user_metadata?.avatar_url || null,
+          photo_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
           role: user.email === ADMIN_EMAIL ? 'admin' : 'user',
           nsfw: window.NSFW || false
         }).select().single();
         udata = newUser;
       }
       window.IS_ADMIN = user.email === ADMIN_EMAIL || udata?.role === 'admin';
-      // Sync NSFW
       if (typeof udata?.nsfw !== 'undefined') {
         window.NSFW = !!udata.nsfw;
         localStorage.setItem('nsfw', window.NSFW ? '1' : '0');
@@ -71,13 +76,13 @@ sb.auth.onAuthStateChange(async (event, session) => {
       }
     } catch(e) { window.IS_ADMIN = user.email === ADMIN_EMAIL; }
     if (window._authResolve) { window._authResolve(user); window._authResolve = null; }
-    onLogin(user);
-    syncList(user.id);
+    if(typeof onLogin === 'function') onLogin(user);
+    if(typeof syncList === 'function') syncList(user.id);
   } else {
     window.IS_ADMIN = false;
     window.NSFW = localStorage.getItem('nsfw') === '1';
     if (window._authResolve) { window._authResolve(null); window._authResolve = null; }
-    onLogout();
+    if(typeof onLogout === 'function') onLogout();
   }
 });
 
@@ -2039,15 +2044,51 @@ async function loadTitles(){
     rGrid('ng',[...vis].reverse().slice(0,6));
     $('as-t').textContent=TITLES.length;
     $('as-c').textContent=ct;
-    rAdDash(); rTitles(); fillSel();
+    if(typeof rAdDash==='function') rAdDash();
+    if(typeof rTitles==='function') rTitles();
+    if(typeof fillSel==='function') fillSel();
   } catch(e){
     console.error('loadTitles error:', e);
     $('hg').innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="ei" style="font-size:28px;opacity:.3">!</div><p style="color:var(--muted);font-size:12px">${e.message}</p></div>`;
   }
 }
 
+function rAdDash(){
+  window.$sb.from('titles').select('*',{count:'exact',head:true}).then(({count:tc})=>{ if($('as-t'))$('as-t').textContent=tc||0; });
+  window.$sb.from('chapters').select('*',{count:'exact',head:true}).then(({count:cc})=>{ if($('as-c'))$('as-c').textContent=cc||0; });
+  window.$sb.from('users').select('*',{count:'exact',head:true}).then(({count:uc})=>{ if($('as-u'))$('as-u').textContent=uc||0; });
+  window.$sb.from('titles').select('id,name_ar,type,status,chapters_count,cover_url').order('created_at',{ascending:false}).limit(5).then(({data})=>{
+    const el=$('ad-rec'); if(!el) return;
+    if(!data||!data.length){el.innerHTML='<p style="color:var(--muted);font-size:13px">لا توجد عناوين</p>';return;}
+    el.innerHTML=`<table class="tbl"><thead><tr><th>الغلاف</th><th>الاسم</th><th>النوع</th><th>الفصول</th></tr></thead><tbody>${
+      data.map(t=>`<tr><td><img class="tc" src="${t.cover_url||''}" onerror="this.style.display='none'"></td><td style="font-weight:700">${t.name_ar||'—'}</td><td><span class="tbg ${TAC(t.type)}">${TL(t.type)}</span></td><td>${t.chapters_count||0}</td></tr>`).join('')
+    }</tbody></table>`;
+  });
+}
+
+function rTitles(){
+  const tb=$('ttb'); if(!tb) return;
+  tb.innerHTML=TITLES.length?TITLES.map(t=>`<tr>
+    <td><img class="tc" src="${t.coverUrl||''}" onerror="this.style.display='none'"></td>
+    <td><div style="font-weight:700;font-size:13px">${t.nameAr||'—'}</div><div style="font-size:10px;color:var(--muted)">${t.id}</div></td>
+    <td><span class="tbg ${TAC(t.type)}">${TL(t.type)}</span></td>
+    <td>${t.chaptersCount||0}</td>
+    <td><span class="tbg ${t.status==='مكتمل'?'bagr':t.status==='متوقف'?'bad':'bm'}">${t.status||'—'}</span></td>
+    <td style="display:flex;gap:5px;flex-wrap:wrap">
+      <button class="ba2 bar sm" onclick="editT('${t.id}')">تعديل</button>
+      <button class="ba2 bad sm" onclick="askDel('title','${t.id}','${(t.nameAr||'').replace(/\'/g,"\\'")}')">حذف</button>
+    </td>
+  </tr>`).join(''):'<tr><td colspan="6" style="text-align:center;padding:22px;color:var(--muted)">لا توجد عناوين</td></tr>';
+}
+
+function fillSel(){
+  const sel=$('csel'); if(!sel) return;
+  sel.innerHTML='<option value="">-- اختر عنواناً --</option>'+
+    TITLES.map(t=>`<option value="${t.id}">${t.nameAr||t.id}</option>`).join('');
+}
+
+
 async function loadUsers(){
-  // loadTitles — supabase
   const ul=$('u-list');
   if(ul) ul.innerHTML='<p style="color:var(--muted);text-align:center;padding:20px">جاري التحميل...</p>';
   try {
@@ -5032,4 +5073,4 @@ self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.a
 <!-- Floating scroll-to-top (reader only) -->
 <button id="r-top-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" style="display:none;position:fixed;bottom:90px;left:16px;z-index:9999;width:48px;height:48px;border-radius:50%;background:var(--red);border:none;color:#fff;font-size:22px;cursor:pointer;box-shadow:0 4px 16px rgba(230,57,70,.6)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
 </body>
-</html>
+                                                                                                                                                    </html>
