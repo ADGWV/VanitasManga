@@ -1,2 +1,2 @@
-# hhh
-https://adgwv.github.io/hhh/
+# VanitasManga
+https://adgwv.github.io/VanitasManga/
