@@ -142,6 +142,39 @@ async function syncList(uid) {
   } catch(e) { console.warn('Sync list error:', e); }
 }
 window._syncList = syncList;
+// دوال تحديث واجهة المستخدم عند تسجيل الدخول أو الخروج
+function onLogin(user) {
+  const unm = document.querySelector('.sb-unm');
+  const uem = document.querySelector('.sb-uem');
+  const av = document.querySelector('.sb-av');
+
+  if (unm) unm.textContent = user.displayName || user.email.split('@')[0] || 'مستخدم';
+  if (uem) uem.textContent = user.email || '';
+  if (av) {
+    if (user.photoURL) {
+      av.innerHTML = `<img src="${user.photoURL}" style="width:100%;height:100%;border-radius:10px;object-fit:cover;">`;
+    } else {
+      av.innerHTML = (user.displayName || user.email || 'U').charAt(0).toUpperCase();
+    }
+  }
+}
+
+function onLogout() {
+  const unm = document.querySelector('.sb-unm');
+  const uem = document.querySelector('.sb-uem');
+  const av = document.querySelector('.sb-av');
+
+  if (unm) unm.textContent = 'تسجيل الدخول / حساب جديد';
+  if (uem) uem.textContent = 'انقر هنا للبدء';
+  if (av) av.innerHTML = '👤';
+
+  // تصفير القوائم المحلية عند تسجيل الخروج
+  window.MY_LIST = { manga: {}, anime: {} };
+}
+
+// جعلها متاحة عالمياً إذا احتاجها أي سكريبت آخر
+window.onLogin = onLogin;
+window.onLogout = onLogout;
 </script>
 
 <style>
